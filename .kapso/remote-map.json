@@ -1,0 +1,42 @@
+{
+  "functions": {
+    "whatsapp-support-agent-ask-team-question": {
+      "files": {
+        "functions/whatsapp-support-agent-ask-team-question/function.yaml": "363335e726919407e2e27086277f922f539387b1864dac8926bb209cd4566725",
+        "functions/whatsapp-support-agent-ask-team-question/index.js": "1413b81dfefeb332126dbc56c164fe4875375cd3f6f022f607652ade158fe02a"
+      },
+      "id": "03d7e0be-3d90-4e04-8162-920f1c5c3975",
+      "lastDeployedAt": "2026-04-26T23:47:40-04:00",
+      "lockVersion": 2,
+      "slug": "whatsapp-support-agent-ask-team-question",
+      "status": "deployed",
+      "updatedAt": "2026-04-26T23:47:40-04:00"
+    },
+    "whatsapp-support-agent-slack-events": {
+      "files": {
+        "functions/whatsapp-support-agent-slack-events/function.yaml": "6d32e711caa6e5f0caeeeba0db1a4eff09fa45a252942fe511d33e45827932d0",
+        "functions/whatsapp-support-agent-slack-events/index.js": "578807390305ea7dbecf936d4cca1f9a1bd311cb075221cdd4373764beff9561"
+      },
+      "id": "5bb828eb-6a84-4d4c-8580-f835acf684e5",
+      "lastDeployedAt": "2026-04-26T23:47:42-04:00",
+      "lockVersion": 2,
+      "slug": "whatsapp-support-agent-slack-events",
+      "status": "deployed",
+      "updatedAt": "2026-04-26T23:47:42-04:00"
+    }
+  },
+  "version": 1,
+  "workflows": {
+    "whats-app-support-agent-example": {
+      "files": {
+        "workflows/whats-app-support-agent-example/definition.json": "f5075b16675da55d1218b885b98138242683ebbe78d59c32f6925a78e35028df",
+        "workflows/whats-app-support-agent-example/workflow.yaml": "668db82b02eddb1c8d43b978a4c5266740b23cfa56be9e45825488e31d26f3fa"
+      },
+      "id": "d6d2a234-f128-4bdd-b9f9-bb6a6e298271",
+      "lockVersion": 7,
+      "slug": "whats-app-support-agent-example",
+      "status": "active",
+      "updatedAt": "2026-04-26T23:48:59-04:00"
+    }
+  }
+}

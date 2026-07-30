@@ -1,0 +1,7 @@
+/.DS_Store
+/.env.local
+/.infisical.json
+/dist
+/node_modules
+/workflows/*/definition.json
+/workflows/*/workflow.yaml

@@ -1,0 +1,15 @@
+{
+  "sandbox_enabled": true,
+  "sandbox_network_mode": "allow_list",
+  "sandbox_allowed_outbound_hosts": [
+    "docs.example.com",
+    "api.example.com"
+  ],
+  "flow_agent_resources": [
+    {
+      "resource_type": "github_repository",
+      "repo_url": "https://github.com/example-org/example-public-repo",
+      "branch": "main"
+    }
+  ]
+}
