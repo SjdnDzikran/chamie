@@ -1,155 +1,87 @@
-# WhatsApp Support Agent
+# Chamie
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Built with Kapso](https://img.shields.io/badge/Built_with-Kapso-black.svg)](https://kapso.ai)
+Chamie is a small WhatsApp AI tutor for Indonesian school students. Students can ask English questions, get help understanding homework, or practice through free-form conversation.
 
-Open-source Kapso example repo for a WhatsApp support workflow that escalates uncertain questions to Slack, pauses with `enter_waiting`, and resumes the same agent run when the team answers.
+This repository contains only the backend. WhatsApp is the user interface.
 
-```
-WhatsApp customer
-  asks a question
-      |
-      v
-Kapso workflow agent
-  answers if confident
-  calls ask_team_question if uncertain
-      |
-      v
-Slack support thread
-  team replies and sends "done"
-      |
-      v
-slack_events function
-  aggregates replies and resumes the workflow
+## Architecture
+
+```text
+WhatsApp
+  -> Kapso webhook
+  -> Chamie Go service
+  -> PostgreSQL recent conversation history
+  -> DeepSeek OpenAI-compatible chat completion
+  -> Kapso WhatsApp reply
 ```
 
-## What It Contains
+Kapso is used only as the WhatsApp transport. Chamie owns its conversation data in PostgreSQL and calls DeepSeek directly. There are no agent tools, workflow engine, escalation flow, Slack integration, or frontend dashboard.
 
-| Resource | Path | Description |
-|---|---|---|
-| `whatsapp-support-agent-ask-team-question` | `functions/whatsapp-support-agent-ask-team-question/` | Private Kapso function used by the `ask_team_question` agent tool |
-| `whatsapp-support-agent-slack-events` | `functions/whatsapp-support-agent-slack-events/` | Public Kapso function that receives Slack events and resumes the workflow |
-| `whats-app-support-agent-example` | `workflows/whats-app-support-agent-example/workflow.ts` | Workflow source authored with `@kapso/workflows` |
+The MVP should run as a single application instance. Per-student message ordering is enforced in process; add a distributed event-claim mechanism before horizontally scaling the service.
 
-The normal loop is: edit function files, edit `workflow.ts`, run `kapso push`.
+## Stack
 
-`kapso push` compiles `workflow.ts` by reading its default-exported `Workflow` instance, writes `workflow.yaml` and `definition.json`, then pushes the functions, workflow, and trigger. This scaffold ignores those generated workflow files because `workflow.ts` is the source of truth. You can track generated JSON/YAML instead if you prefer CLI-only editing.
-
-## Prerequisites
-
-- Bun `1.3+`
-- Kapso CLI on your `PATH`
-- A Kapso project and `KAPSO_API_KEY`
-- A WhatsApp phone number id for inbound triggers
-- A Slack app with `chat:write`, `channels:history`, a signing secret, and a public channel where the bot is invited
+- Go 1.26
+- Standard `net/http`
+- PostgreSQL through `pgx/v5`
+- DeepSeek through its OpenAI-compatible API
+- Kapso WhatsApp API and webhooks
 
 ## Setup
 
-```bash
-bun install
-cp .env.example .env.local
-```
-
-For this unpublished local checkout, `bun install` creates `node_modules/.bin/kapso`. Add it to your shell path when you want to run bare CLI commands from this repo:
+1. Create a PostgreSQL database.
+2. Copy the example environment file:
 
 ```bash
-export PATH="$PWD/node_modules/.bin:$PATH"
+cp .env.example .env
 ```
 
-After the CLI is published, install it globally instead and keep using the same commands:
+3. Fill in `AI_API_KEY`, `DATABASE_URL`, `KAPSO_API_KEY`, `KAPSO_PHONE_NUMBER_ID`, and `KAPSO_WEBHOOK_SECRET`.
+4. Replace `prompts/system.md` with the reviewed Chamie prompt before production use.
+5. Run the service:
 
 ```bash
-bun add -g @kapso/cli
+go run ./cmd/chamie
 ```
 
-Fill `.env.local` with:
+The service applies its database migration automatically at startup.
 
-| Variable | Required | Description |
-|---|---|---|
-| `KAPSO_API_KEY` | Yes | Project-scoped Kapso API key |
-| `WHATSAPP_PHONE_NUMBER_ID` | Yes | Phone number for inbound triggers |
-| `SLACK_BOT_TOKEN` | Yes | Slack bot OAuth token |
-| `SLACK_SIGNING_SECRET` | Yes | Slack app signing secret |
-| `SLACK_CHANNEL_ID` | Yes | Channel where escalations are posted |
-| `PROVIDER_MODEL_NAME` | No | Defaults to `openai/gpt-5.4` |
+## Environment
 
-Validate locally:
+| Variable | Required | Default | Purpose |
+|---|---:|---|---|
+| `AI_API_KEY` | Yes | - | DeepSeek API key |
+| `AI_BASE_URL` | No | `https://api.deepseek.com` | OpenAI-compatible API base URL |
+| `AI_MODEL` | No | `deepseek-chat` | Chat completion model |
+| `DATABASE_URL` | Yes | - | PostgreSQL connection URL |
+| `HISTORY_LIMIT` | No | `30` | Recent messages sent to the model |
+| `KAPSO_API_KEY` | Yes | - | Kapso project API key |
+| `KAPSO_PHONE_NUMBER_ID` | Yes | - | WhatsApp phone number ID |
+| `KAPSO_WEBHOOK_SECRET` | Yes | - | HMAC webhook signature secret |
+| `KAPSO_BASE_URL` | No | `https://api.kapso.ai/meta/whatsapp/v24.0` | Kapso WhatsApp API base URL |
+| `HTTP_PORT` | No | `8080` | HTTP listen port |
+| `SYSTEM_PROMPT_PATH` | No | `./prompts/system.md` | External tutor prompt file |
+
+## Kapso Webhook
+
+Configure Kapso to send message events to:
+
+```text
+https://your-domain.example/webhooks/whatsapp
+```
+
+The endpoint verifies Kapso's HMAC-SHA256 signature, accepts inbound text messages, and uses `X-Idempotency-Key` to avoid processing completed deliveries twice. Other message types and outbound message events are ignored. Processing completes before the webhook is acknowledged so Kapso can retry transient failures. `GET /health` provides a basic process health check.
+
+## Development
 
 ```bash
-bun run validate
-bun test
+go test ./...
+go build ./cmd/chamie
 ```
 
-Link and push:
+## Data
 
-```bash
-kapso link
-kapso push
-bun run sync:secrets
-```
-
-After `sync:secrets`, copy the printed `Slack events URL` into the Slack app Event Subscriptions page. The setup is not complete until Slack points at that URL and the bot is invited to `SLACK_CHANNEL_ID`.
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `kapso link` | Binds this directory to the Kapso project |
-| `kapso push --dry-run` | Shows the function/workflow push plan |
-| `kapso push` | Builds workflow source and pushes functions, workflow, and trigger |
-| `bun run sync:secrets` | Pushes per-function secrets from `.env.local` |
-| `bun run validate` | Checks local function sources and workflow source |
-| `bun test` | Runs unit tests |
-
-## Advanced: Agent Sandbox
-
-This scaffold can optionally mount one GitHub repository into the agent node sandbox so the support agent can inspect product docs, code, or examples before escalating to Slack.
-
-This is not special CLI behavior. The CLI only compiles `workflow.ts`; this scaffold's workflow source reads `AGENT_SANDBOX_*` env vars and conditionally adds agent-node config through the workflow library's `rawConfig`.
-
-Set these in `.env.local` before `kapso push`:
-
-- `AGENT_SANDBOX_GITHUB_REPO_URL`
-- `AGENT_SANDBOX_GITHUB_REPO_BRANCH`, defaults to `main`
-- `AGENT_SANDBOX_GITHUB_PAT`, empty is valid for public repos
-- `AGENT_SANDBOX_NETWORK_MODE`, defaults to `allow_list`
-- `AGENT_SANDBOX_ALLOWED_OUTBOUND_HOSTS`, comma-separated or newline-separated
-- `AGENT_SANDBOX_ENABLED`, optional explicit `true` or `false`
-
-Mounted paths are predictable:
-
-- `main`: `/workspace/repos/<owner>-<repo>`
-- non-main branch: `/workspace/repos/<owner>-<repo>@<branch-slug>`
-
-See [docs/agent-node-sandbox-github.md](docs/agent-node-sandbox-github.md) for details.
-
-## Function Source Contract
-
-Kapso function entrypoints are plain uploaded Worker files:
-
-```js
-async function handler(request, env) {
-  return new Response('ok');
-}
-```
-
-They intentionally do not use `export default`, `module.exports`, or a TypeScript build step.
-
-## Repo Layout
-
-```
-functions/                  # Kapso function source files and function.yaml metadata
-workflows/                  # Workflow-as-code source
-scripts/sync-secrets.js     # Temporary helper until function secrets live in the CLI
-src/lib/                    # Shared local helpers for workflow source and validation
-tests/                      # Unit tests for function behavior and workflow source
-```
-
-## Notes
-
-- The Kapso API base URL is hardcoded to `https://api.kapso.ai`.
-- Function secrets are still synced separately because the CLI does not manage per-function secrets yet.
-- `@kapso/cli` and `@kapso/workflows` are regular package dependencies. Use local links only when testing unpublished package changes.
+Conversation messages are stored in `conversation_messages`, while `webhook_events` tracks completed Kapso deliveries. The model receives only the latest `HISTORY_LIMIT` messages, in chronological order. There are no student profiles or progress-tracking records in the MVP.
 
 ## License
 
