@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -15,6 +16,11 @@ import (
 type Completer interface {
 	Complete(ctx context.Context, systemPrompt string, history []conversation.Message) (string, error)
 }
+
+var (
+	ErrMessageRequired = errors.New("message is required")
+	ErrSessionRequired = errors.New("session ID is required")
+)
 
 type Service struct {
 	store        conversation.Store
@@ -97,6 +103,54 @@ func (s *Service) Handle(ctx context.Context, inbound whatsapp.InboundMessage) e
 		return fmt.Errorf("complete webhook event: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) Chat(ctx context.Context, sessionID, message string) (string, error) {
+	body := strings.TrimSpace(message)
+	if body == "" {
+		return "", ErrMessageRequired
+	}
+	if strings.TrimSpace(sessionID) == "" {
+		return "", ErrSessionRequired
+	}
+
+	participant := "web:" + sessionID
+	lock := s.phoneLock(participant)
+	lock.Lock()
+	defer lock.Unlock()
+
+	userMessageID := participant + ":" + fmt.Sprintf("%d", time.Now().UTC().UnixNano()) + ":user"
+	if err := s.store.Append(ctx, participant, conversation.Message{
+		ID:        userMessageID,
+		Role:      "user",
+		Content:   body,
+		CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		return "", fmt.Errorf("store user message: %w", err)
+	}
+
+	history, err := s.store.Recent(ctx, participant, s.historyLimit)
+	if err != nil {
+		return "", fmt.Errorf("load conversation history: %w", err)
+	}
+	response, err := s.completer.Complete(ctx, s.systemPrompt, history)
+	if err != nil {
+		return "", fmt.Errorf("generate tutor response: %w", err)
+	}
+	response = strings.TrimSpace(response)
+	if response == "" {
+		return "", fmt.Errorf("generate tutor response: empty response")
+	}
+
+	if err := s.store.Append(ctx, participant, conversation.Message{
+		ID:        participant + ":" + fmt.Sprintf("%d", time.Now().UTC().UnixNano()) + ":assistant",
+		Role:      "assistant",
+		Content:   response,
+		CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		return "", fmt.Errorf("store assistant message: %w", err)
+	}
+	return response, nil
 }
 
 func (s *Service) phoneLock(phoneNumber string) *sync.Mutex {

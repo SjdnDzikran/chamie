@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync/atomic"
 	"testing"
@@ -149,6 +150,105 @@ func TestServiceSerializesMessagesForSamePhoneNumber(t *testing.T) {
 		if err := <-errors; err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestServiceChatReturnsReply(t *testing.T) {
+	var operations []string
+	store := &fakeStore{
+		appendFn: func(_ context.Context, phone string, message conversation.Message) error {
+			operations = append(operations, "append:"+phone+":"+message.Role+":"+message.Content)
+			return nil
+		},
+		recentFn: func(_ context.Context, phone string, limit int) ([]conversation.Message, error) {
+			operations = append(operations, "recent:"+phone)
+			if phone != "web:session-1" {
+				t.Errorf("recent phone = %q", phone)
+			}
+			if limit != 30 {
+				t.Errorf("recent limit = %d", limit)
+			}
+			return []conversation.Message{{Role: "user", Content: "What is photosynthesis?"}}, nil
+		},
+	}
+	completer := &fakeCompleter{completeFn: func(_ context.Context, prompt string, history []conversation.Message) (string, error) {
+		operations = append(operations, "complete")
+		if prompt != "system prompt" {
+			t.Errorf("prompt = %q", prompt)
+		}
+		if len(history) != 1 || history[0].Content != "What is photosynthesis?" {
+			t.Errorf("history = %#v", history)
+		}
+		return "Photosynthesis is the process by which plants…", nil
+	}}
+
+	service := NewService(store, completer, &fakeSender{}, "system prompt", 30)
+	reply, err := service.Chat(context.Background(), "session-1", "What is photosynthesis?")
+	if err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+	if reply != "Photosynthesis is the process by which plants…" {
+		t.Errorf("reply = %q", reply)
+	}
+
+	want := []string{
+		"append:web:session-1:user:What is photosynthesis?",
+		"recent:web:session-1",
+		"complete",
+		"append:web:session-1:assistant:Photosynthesis is the process by which plants…",
+	}
+	if !reflect.DeepEqual(operations, want) {
+		t.Errorf("operations = %#v, want %#v", operations, want)
+	}
+}
+
+func TestServiceChatRequiresSessionID(t *testing.T) {
+	service := NewService(&fakeStore{}, &fakeCompleter{}, &fakeSender{}, "prompt", 30)
+	_, err := service.Chat(context.Background(), "  ", "hello")
+	if err == nil {
+		t.Fatal("Chat() with empty session ID succeeded")
+	}
+}
+
+func TestServiceChatRequiresMessage(t *testing.T) {
+	service := NewService(&fakeStore{}, &fakeCompleter{}, &fakeSender{}, "prompt", 30)
+	_, err := service.Chat(context.Background(), "session-1", "   ")
+	if err == nil {
+		t.Fatal("Chat() with empty message succeeded")
+	}
+}
+
+func TestServiceChatReturnsCompleterFailure(t *testing.T) {
+	store := &fakeStore{
+		appendFn: func(context.Context, string, conversation.Message) error { return nil },
+		recentFn: func(context.Context, string, int) ([]conversation.Message, error) {
+			return nil, nil
+		},
+	}
+	completer := &fakeCompleter{completeFn: func(context.Context, string, []conversation.Message) (string, error) {
+		return "", errors.New("model down")
+	}}
+	service := NewService(store, completer, &fakeSender{}, "prompt", 30)
+
+	if _, err := service.Chat(context.Background(), "session-1", "hello"); err == nil {
+		t.Fatal("Chat() with failing completer succeeded")
+	}
+}
+
+func TestServiceChatRejectsEmptyCompletion(t *testing.T) {
+	store := &fakeStore{
+		appendFn: func(context.Context, string, conversation.Message) error { return nil },
+		recentFn: func(context.Context, string, int) ([]conversation.Message, error) {
+			return nil, nil
+		},
+	}
+	completer := &fakeCompleter{completeFn: func(context.Context, string, []conversation.Message) (string, error) {
+		return "   ", nil
+	}}
+	service := NewService(store, completer, &fakeSender{}, "prompt", 30)
+
+	if _, err := service.Chat(context.Background(), "session-1", "hello"); err == nil {
+		t.Fatal("Chat() with empty completion succeeded")
 	}
 }
 
