@@ -48,11 +48,8 @@ func Load() (*Config, error) {
 
 	var missing []string
 	for name, value := range map[string]string{
-		"AI_API_KEY":            cfg.AIAPIKey,
-		"DATABASE_URL":          cfg.DatabaseURL,
-		"KAPSO_API_KEY":         cfg.KapsoAPIKey,
-		"KAPSO_PHONE_NUMBER_ID": cfg.KapsoPhoneNumberID,
-		"KAPSO_WEBHOOK_SECRET":  cfg.KapsoWebhookSecret,
+		"AI_API_KEY":   cfg.AIAPIKey,
+		"DATABASE_URL": cfg.DatabaseURL,
 	} {
 		if value == "" {
 			missing = append(missing, name)

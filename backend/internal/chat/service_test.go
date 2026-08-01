@@ -268,6 +268,42 @@ func TestServiceIgnoresEmptyMessages(t *testing.T) {
 	}
 }
 
+func TestServiceHandlesWithoutSender(t *testing.T) {
+	var operations []string
+	store := &fakeStore{
+		beginEventFn: func(context.Context, string) (bool, error) { return true, nil },
+		appendFn: func(_ context.Context, _ string, message conversation.Message) error {
+			operations = append(operations, "append:"+message.Role)
+			return nil
+		},
+		recentFn: func(context.Context, string, int) ([]conversation.Message, error) {
+			return []conversation.Message{{Role: "user", Content: "hello"}}, nil
+		},
+		completeEventFn: func(context.Context, string) error {
+			operations = append(operations, "complete-event")
+			return nil
+		},
+	}
+	completer := &fakeCompleter{completeFn: func(context.Context, string, []conversation.Message) (string, error) {
+		operations = append(operations, "complete")
+		return "reply", nil
+	}}
+	service := NewService(store, completer, nil, "prompt", 30)
+
+	err := service.Handle(context.Background(), whatsapp.InboundMessage{
+		ID:          "wamid.1",
+		EventID:     "event-1",
+		PhoneNumber: "628123",
+		Body:        "hello",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if !reflect.DeepEqual(operations, []string{"append:user", "complete", "append:assistant", "complete-event"}) {
+		t.Errorf("operations = %#v", operations)
+	}
+}
+
 type fakeStore struct {
 	beginEventFn    func(context.Context, string) (bool, error)
 	appendFn        func(context.Context, string, conversation.Message) error

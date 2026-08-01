@@ -71,8 +71,10 @@ func (s *Service) Handle(ctx context.Context, inbound whatsapp.InboundMessage) e
 		return fmt.Errorf("store inbound message: %w", err)
 	}
 
-	if err := s.sender.MarkRead(ctx, inbound.ID); err != nil {
-		slog.Warn("failed to mark WhatsApp message as read", "message_id", inbound.ID, "error", err)
+	if s.sender != nil {
+		if err := s.sender.MarkRead(ctx, inbound.ID); err != nil {
+			slog.Warn("failed to mark WhatsApp message as read", "message_id", inbound.ID, "error", err)
+		}
 	}
 
 	history, err := s.store.Recent(ctx, inbound.PhoneNumber, s.historyLimit)
@@ -88,8 +90,10 @@ func (s *Service) Handle(ctx context.Context, inbound whatsapp.InboundMessage) e
 		return fmt.Errorf("generate tutor response: empty response")
 	}
 
-	if err := s.sender.SendText(ctx, inbound.PhoneNumber, response); err != nil {
-		return fmt.Errorf("send tutor response: %w", err)
+	if s.sender != nil {
+		if err := s.sender.SendText(ctx, inbound.PhoneNumber, response); err != nil {
+			return fmt.Errorf("send tutor response: %w", err)
+		}
 	}
 	if err := s.store.Append(ctx, inbound.PhoneNumber, conversation.Message{
 		ID:        inbound.EventID + ":assistant",
