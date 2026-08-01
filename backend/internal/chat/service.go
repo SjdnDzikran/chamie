@@ -15,6 +15,7 @@ import (
 
 type Completer interface {
 	Complete(ctx context.Context, systemPrompt string, history []conversation.Message) (string, error)
+	CompleteStream(ctx context.Context, systemPrompt string, history []conversation.Message, onDelta func(string)) (string, error)
 }
 
 var (
@@ -110,6 +111,10 @@ func (s *Service) Handle(ctx context.Context, inbound whatsapp.InboundMessage) e
 }
 
 func (s *Service) Chat(ctx context.Context, sessionID, message string) (string, error) {
+	return s.ChatStream(ctx, sessionID, message, nil)
+}
+
+func (s *Service) ChatStream(ctx context.Context, sessionID, message string, onDelta func(string)) (string, error) {
 	body := strings.TrimSpace(message)
 	if body == "" {
 		return "", ErrMessageRequired
@@ -137,7 +142,7 @@ func (s *Service) Chat(ctx context.Context, sessionID, message string) (string, 
 	if err != nil {
 		return "", fmt.Errorf("load conversation history: %w", err)
 	}
-	response, err := s.completer.Complete(ctx, s.systemPrompt, history)
+	response, err := s.completer.CompleteStream(ctx, s.systemPrompt, history, onDelta)
 	if err != nil {
 		return "", fmt.Errorf("generate tutor response: %w", err)
 	}

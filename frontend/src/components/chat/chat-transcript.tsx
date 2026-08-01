@@ -56,6 +56,10 @@ export function ChatTranscript({
   messages: ChatMessage[]
   isSending: boolean
 }) {
+  const lastMessage = messages[messages.length - 1]
+  const showThinking =
+    isSending && (!lastMessage || lastMessage.role === "user")
+
   return (
     <MessageScrollerProvider>
       <MessageScroller className="flex-1">
@@ -69,7 +73,7 @@ export function ChatTranscript({
                 <MessageRow message={message} />
               </MessageScrollerItem>
             ))}
-            {isSending && (
+            {showThinking && (
               <MessageScrollerItem scrollAnchor={false}>
                 <Marker role="status">
                   <MarkerIcon>

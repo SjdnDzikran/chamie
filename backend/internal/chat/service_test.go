@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -252,6 +253,88 @@ func TestServiceChatRejectsEmptyCompletion(t *testing.T) {
 	}
 }
 
+func TestServiceChatStreamEmitsDeltasAndPersists(t *testing.T) {
+	var operations []string
+	store := &fakeStore{
+		appendFn: func(_ context.Context, phone string, message conversation.Message) error {
+			operations = append(operations, "append:"+message.Role+":"+message.Content)
+			if phone != "web:session-1" {
+				t.Errorf("append phone = %q", phone)
+			}
+			return nil
+		},
+		recentFn: func(_ context.Context, phone string, limit int) ([]conversation.Message, error) {
+			operations = append(operations, "recent")
+			if phone != "web:session-1" || limit != 30 {
+				t.Errorf("recent(%q, %d)", phone, limit)
+			}
+			return []conversation.Message{{Role: "user", Content: "Hi"}}, nil
+		},
+	}
+	completer := &fakeCompleter{completeStreamFn: func(_ context.Context, prompt string, history []conversation.Message, onDelta func(string)) (string, error) {
+		operations = append(operations, "stream")
+		if prompt != "system prompt" {
+			t.Errorf("prompt = %q", prompt)
+		}
+		onDelta("Hel")
+		onDelta("lo")
+		return "Hello", nil
+	}}
+
+	service := NewService(store, completer, &fakeSender{}, "system prompt", 30)
+	var deltas []string
+	reply, err := service.ChatStream(context.Background(), "session-1", "Hi", func(delta string) {
+		deltas = append(deltas, delta)
+	})
+	if err != nil {
+		t.Fatalf("ChatStream() error = %v", err)
+	}
+
+	if reply != "Hello" {
+		t.Errorf("reply = %q", reply)
+	}
+	if strings.Join(deltas, "") != "Hello" {
+		t.Errorf("deltas = %#v", deltas)
+	}
+	want := []string{
+		"append:user:Hi",
+		"recent",
+		"stream",
+		"append:assistant:Hello",
+	}
+	if !reflect.DeepEqual(operations, want) {
+		t.Errorf("operations = %#v, want %#v", operations, want)
+	}
+}
+
+func TestServiceChatStreamRequiresSessionAndMessage(t *testing.T) {
+	service := NewService(&fakeStore{}, &fakeCompleter{}, &fakeSender{}, "prompt", 30)
+
+	if _, err := service.ChatStream(context.Background(), "  ", "hello", nil); err == nil {
+		t.Fatal("ChatStream() with empty session ID succeeded")
+	}
+	if _, err := service.ChatStream(context.Background(), "session-1", "  ", nil); err == nil {
+		t.Fatal("ChatStream() with empty message succeeded")
+	}
+}
+
+func TestServiceChatStreamReturnsCompleterFailure(t *testing.T) {
+	store := &fakeStore{
+		appendFn: func(context.Context, string, conversation.Message) error { return nil },
+		recentFn: func(context.Context, string, int) ([]conversation.Message, error) {
+			return nil, nil
+		},
+	}
+	completer := &fakeCompleter{completeStreamFn: func(context.Context, string, []conversation.Message, func(string)) (string, error) {
+		return "", errors.New("model down")
+	}}
+	service := NewService(store, completer, &fakeSender{}, "prompt", 30)
+
+	if _, err := service.ChatStream(context.Background(), "session-1", "hello", nil); err == nil {
+		t.Fatal("ChatStream() with failing completer succeeded")
+	}
+}
+
 func TestServiceIgnoresEmptyMessages(t *testing.T) {
 	called := false
 	store := &fakeStore{appendFn: func(context.Context, string, conversation.Message) error {
@@ -328,10 +411,18 @@ func (f *fakeStore) CompleteEvent(ctx context.Context, eventID string) error {
 }
 
 type fakeCompleter struct {
-	completeFn func(context.Context, string, []conversation.Message) (string, error)
+	completeFn       func(context.Context, string, []conversation.Message) (string, error)
+	completeStreamFn func(context.Context, string, []conversation.Message, func(string)) (string, error)
 }
 
 func (f *fakeCompleter) Complete(ctx context.Context, prompt string, history []conversation.Message) (string, error) {
+	return f.completeFn(ctx, prompt, history)
+}
+
+func (f *fakeCompleter) CompleteStream(ctx context.Context, prompt string, history []conversation.Message, onDelta func(string)) (string, error) {
+	if f.completeStreamFn != nil {
+		return f.completeStreamFn(ctx, prompt, history, onDelta)
+	}
 	return f.completeFn(ctx, prompt, history)
 }
 
