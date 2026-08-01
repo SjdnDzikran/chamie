@@ -1,0 +1,6 @@
+.env
+bin/
+*.test
+*_test.go
+README.md
+AGENTS.md

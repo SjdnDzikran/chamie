@@ -52,9 +52,6 @@ func run() error {
 		return err
 	}
 	defer pool.Close()
-	if err := db.Migrate(ctx, pool); err != nil {
-		return err
-	}
 
 	store := conversation.NewPostgresStore(pool)
 	model := ai.NewClient(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel, nil)

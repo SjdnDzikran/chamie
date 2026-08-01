@@ -1,8 +1,8 @@
-# Chamie
+# Chamie Backend
 
 Chamie is a small WhatsApp AI tutor for Indonesian school students. Students can ask English questions, get help understanding homework, or practice through free-form conversation.
 
-This repository contains only the backend. WhatsApp is the user interface.
+This repository contains the backend. WhatsApp is the user interface.
 
 ## Architecture
 
@@ -29,6 +29,8 @@ The MVP should run as a single application instance. Per-student message orderin
 
 ## Setup
 
+Run these commands from this directory:
+
 1. Create a PostgreSQL database.
 2. Copy the example environment file:
 
@@ -41,10 +43,22 @@ cp .env.example .env
 5. Run the service:
 
 ```bash
-go run ./cmd/chamie
+make run
 ```
 
-The service applies its database migration automatically at startup.
+The `make run` workflow applies pending migrations before starting the service.
+
+## Migrations
+
+Migrations use `golang-migrate` and live in `db/migrations` as paired `.up.sql` and `.down.sql` files.
+
+```bash
+make migrate-up
+make migrate-down
+STEPS=2 make migrate-down
+```
+
+Docker runs `migrate-up` before starting the Chamie server.
 
 ## Environment
 
@@ -71,13 +85,6 @@ https://your-domain.example/webhooks/whatsapp
 ```
 
 The endpoint verifies Kapso's HMAC-SHA256 signature, accepts inbound text messages, and uses `X-Idempotency-Key` to avoid processing completed deliveries twice. Other message types and outbound message events are ignored. Processing completes before the webhook is acknowledged so Kapso can retry transient failures. `GET /health` provides a basic process health check.
-
-## Development
-
-```bash
-go test ./...
-go build ./cmd/chamie
-```
 
 ## Data
 

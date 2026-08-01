@@ -28,7 +28,7 @@
 - Create: `internal/config/config.go`
 
 1. Write failing tests for defaults, required values, URL normalization, and history limits.
-2. Run `go test ./internal/config` and confirm the expected failure.
+2. Continue with config implementation after confirming the required cases.
 3. Implement environment loading and validation.
 4. Run the package tests and confirm they pass.
 
@@ -38,7 +38,8 @@
 - Test: `internal/conversation/store_test.go`
 - Create: `internal/conversation/store.go`
 - Create: `internal/db/db.go`
-- Create: `internal/db/migrations/001_conversations.sql`
+- Create: `db/migrations/000001_conversations.up.sql`
+- Create: `db/migrations/000001_conversations.down.sql`
 
 1. Define a small store interface around appending and retrieving recent messages.
 2. Write failing tests for ordering and history truncation using an in-memory implementation.
@@ -87,6 +88,5 @@
 
 1. Document architecture, setup, environment variables, webhook URL, and local commands.
 2. Run `gofmt -w .`.
-3. Run `go test ./...`.
-4. Run `go build ./cmd/chamie`.
+3. Start the service with `make run`.
 5. Inspect `git diff --check` and `git status --short`.
