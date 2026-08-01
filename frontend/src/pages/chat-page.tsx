@@ -7,10 +7,12 @@ export function ChatPage() {
   const { messages, isSending, send } = useChat()
 
   return (
-    <div className="flex h-svh flex-col">
-      <ChatHeader />
-      <ChatTranscript messages={messages} isSending={isSending} />
-      <ChatComposer isSending={isSending} onSend={send} />
+    <div className="flex h-svh justify-center">
+      <div className="flex h-full w-full max-w-3xl flex-col">
+        <ChatHeader />
+        <ChatTranscript messages={messages} isSending={isSending} />
+        <ChatComposer isSending={isSending} onSend={send} />
+      </div>
     </div>
   )
 }

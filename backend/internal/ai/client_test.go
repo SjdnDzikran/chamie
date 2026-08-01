@@ -90,3 +90,53 @@ func TestClientRejectsEmptyCompletion(t *testing.T) {
 		t.Fatalf("Complete() error = %v", err)
 	}
 }
+
+func TestClientCompleteStreamParsesDeltas(t *testing.T) {
+	var gotBody struct {
+		Stream bool `json:"stream"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(
+			"data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{\"content\":\"lo \"}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{\"content\":\"world\"}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n" +
+				"data: [DONE]\n\n",
+		))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret", "deepseek-chat", server.Client())
+	var deltas []string
+	response, err := client.CompleteStream(context.Background(), "prompt", []conversation.Message{{Role: "user", Content: "Hi"}}, func(delta string) {
+		deltas = append(deltas, delta)
+	})
+	if err != nil {
+		t.Fatalf("CompleteStream() error = %v", err)
+	}
+
+	if !gotBody.Stream {
+		t.Error("stream = false, want true")
+	}
+	if response != "Hello world" {
+		t.Errorf("CompleteStream() = %q", response)
+	}
+	if len(deltas) != 3 || strings.Join(deltas, "") != "Hello world" {
+		t.Errorf("deltas = %#v", deltas)
+	}
+}
+
+func TestClientCompleteStreamReturnsAPIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":{"message":"model overloaded"}}`, http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret", "deepseek-chat", server.Client())
+	_, err := client.CompleteStream(context.Background(), "prompt", []conversation.Message{{Role: "user", Content: "Hi"}}, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "model overloaded") {
+		t.Fatalf("CompleteStream() error = %v", err)
+	}
+}
