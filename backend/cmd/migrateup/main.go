@@ -26,6 +26,7 @@ func main() {
 		if err := db.RunMigrationsDown(ctx, databaseURL, *migrationsPath, *steps); err != nil {
 			log.Fatalf("migration rollback failed: %v", err)
 		}
+		fmt.Println("migrations rolled back")
 		return
 	}
 
@@ -33,4 +34,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "migration failed: %v\n", err)
 		os.Exit(1)
 	}
+	fmt.Println("migrations applied (or no change)")
 }
