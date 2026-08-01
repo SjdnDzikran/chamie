@@ -55,19 +55,26 @@ func run() error {
 
 	store := conversation.NewPostgresStore(pool)
 	model := ai.NewClient(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel, nil)
-	sender := whatsapp.NewKapsoSender(cfg.KapsoBaseURL, cfg.KapsoAPIKey, cfg.KapsoPhoneNumberID, nil)
+
+	var sender whatsapp.Sender
+	if cfg.KapsoAPIKey != "" && cfg.KapsoPhoneNumberID != "" && cfg.KapsoWebhookSecret != "" {
+		sender = whatsapp.NewKapsoSender(cfg.KapsoBaseURL, cfg.KapsoAPIKey, cfg.KapsoPhoneNumberID, nil)
+	}
 	tutor := chat.NewService(store, model, sender, strings.TrimSpace(string(systemPrompt)), cfg.HistoryLimit)
 
 	mux := http.NewServeMux()
-	mux.Handle("POST /webhooks/whatsapp", whatsapp.NewWebhookHandler(cfg.KapsoWebhookSecret,
-		func(requestCtx context.Context, message whatsapp.InboundMessage) error {
-			err := handleInbound(requestCtx, tutor, message, 80*time.Second)
-			if err != nil {
-				slog.Error("process WhatsApp message", "message_id", message.ID, "phone", message.PhoneNumber, "error", err)
-			}
-			return err
-		},
-	))
+	if sender != nil {
+		mux.Handle("POST /webhooks/whatsapp", whatsapp.NewWebhookHandler(cfg.KapsoWebhookSecret,
+			func(requestCtx context.Context, message whatsapp.InboundMessage) error {
+				err := handleInbound(requestCtx, tutor, message, 80*time.Second)
+				if err != nil {
+					slog.Error("process WhatsApp message", "message_id", message.ID, "phone", message.PhoneNumber, "error", err)
+				}
+				return err
+			},
+		))
+	}
+	mux.Handle("POST /api/chat", chat.NewWebChatHandler(tutor))
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

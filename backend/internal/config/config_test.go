@@ -17,7 +17,7 @@ func TestLoadRequiresCoreCredentials(t *testing.T) {
 		t.Fatal("expected missing configuration error")
 	}
 
-	for _, name := range []string{"AI_API_KEY", "DATABASE_URL", "KAPSO_API_KEY", "KAPSO_PHONE_NUMBER_ID", "KAPSO_WEBHOOK_SECRET"} {
+	for _, name := range []string{"AI_API_KEY", "DATABASE_URL"} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("error %q does not mention %s", err, name)
 		}
@@ -59,6 +59,23 @@ func TestLoadAppliesDeepSeekDefaultsAndNormalizesURLs(t *testing.T) {
 	}
 	if cfg.SystemPromptPath != "./prompts/system.md" {
 		t.Errorf("SystemPromptPath = %q", cfg.SystemPromptPath)
+	}
+}
+
+func TestLoadSucceedsWithoutKapso(t *testing.T) {
+	t.Setenv("AI_API_KEY", "deepseek-key")
+	t.Setenv("DATABASE_URL", "postgres://db/chamie")
+	t.Setenv("KAPSO_API_KEY", "")
+	t.Setenv("KAPSO_PHONE_NUMBER_ID", "")
+	t.Setenv("KAPSO_WEBHOOK_SECRET", "")
+	t.Setenv("HISTORY_LIMIT", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.KapsoAPIKey != "" || cfg.KapsoPhoneNumberID != "" || cfg.KapsoWebhookSecret != "" {
+		t.Errorf("Kapso fields should be empty, got %#v", cfg)
 	}
 }
 
