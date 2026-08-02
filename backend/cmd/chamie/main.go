@@ -76,6 +76,7 @@ func run() error {
 	}
 	mux.Handle("POST /api/chat", chat.NewWebChatHandler(tutor))
 	mux.Handle("POST /api/chat/stream", chat.NewWebChatStreamHandler(tutor))
+	mux.Handle("GET /api/chat/history", chat.NewWebChatHistoryHandler(tutor))
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

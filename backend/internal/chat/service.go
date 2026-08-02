@@ -114,6 +114,18 @@ func (s *Service) Chat(ctx context.Context, sessionID, message string) (string, 
 	return s.ChatStream(ctx, sessionID, message, nil)
 }
 
+func (s *Service) History(ctx context.Context, sessionID string) ([]conversation.Message, error) {
+	if strings.TrimSpace(sessionID) == "" {
+		return nil, ErrSessionRequired
+	}
+
+	history, err := s.store.Recent(ctx, "web:"+sessionID, s.historyLimit)
+	if err != nil {
+		return nil, fmt.Errorf("load conversation history: %w", err)
+	}
+	return history, nil
+}
+
 func (s *Service) ChatStream(ctx context.Context, sessionID, message string, onDelta func(string)) (string, error) {
 	body := strings.TrimSpace(message)
 	if body == "" {
