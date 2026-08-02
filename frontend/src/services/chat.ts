@@ -1,4 +1,21 @@
-import type { ChatReply } from "@/types/chat"
+import type { ChatHistory, ChatMessage, ChatReply } from "@/types/chat"
+
+export async function loadHistory(sessionID: string): Promise<ChatMessage[]> {
+  const response = await fetch(
+    `/api/chat/history?session_id=${encodeURIComponent(sessionID)}`
+  )
+  if (!response.ok) {
+    throw new Error(`Chat history request failed (${response.status})`)
+  }
+
+  const history = (await response.json()) as ChatHistory
+  return history.messages.map((message) => ({
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    createdAt: new Date(message.created_at),
+  }))
+}
 
 export async function sendMessage(
   sessionID: string,

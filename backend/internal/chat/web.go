@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
+
+	"github.com/dzikran/chamie/internal/conversation"
 )
 
 type ChatService interface {
@@ -17,9 +20,20 @@ type ChatStreamService interface {
 	ChatStream(ctx context.Context, sessionID, message string, onDelta func(string)) (string, error)
 }
 
+type ChatHistoryService interface {
+	History(ctx context.Context, sessionID string) ([]conversation.Message, error)
+}
+
 type chatRequest struct {
 	SessionID string `json:"session_id"`
 	Message   string `json:"message"`
+}
+
+type chatHistoryMessage struct {
+	ID        string    `json:"id"`
+	Role      string    `json:"role"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func decodeChatRequest(w http.ResponseWriter, r *http.Request) (*chatRequest, bool) {
@@ -116,4 +130,41 @@ func (h *WebChatStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	_ = writeEvent(map[string]any{"done": true})
+}
+
+type WebChatHistoryHandler struct {
+	service ChatHistoryService
+}
+
+func NewWebChatHistoryHandler(service ChatHistoryService) *WebChatHistoryHandler {
+	return &WebChatHistoryHandler{service: service}
+}
+
+func (h *WebChatHistoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	history, err := h.service.History(r.Context(), r.URL.Query().Get("session_id"))
+	if err != nil {
+		if errors.Is(err, ErrSessionRequired) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "load chat history failed", http.StatusInternalServerError)
+		return
+	}
+
+	messages := make([]chatHistoryMessage, len(history))
+	for i, message := range history {
+		messages[i] = chatHistoryMessage{
+			ID:        message.ID,
+			Role:      message.Role,
+			Content:   message.Content,
+			CreatedAt: message.CreatedAt,
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"messages": messages})
 }

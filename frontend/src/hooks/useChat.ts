@@ -1,27 +1,51 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { getOrCreateSessionID } from "@/lib/session"
-import { streamMessage } from "@/services/chat"
+import { loadHistory, streamMessage } from "@/services/chat"
 import type { ChatMessage } from "@/types/chat"
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
-  const nextID = useRef(1)
+  const [isLoading, setIsLoading] = useState(true)
+  const [sessionID] = useState(getOrCreateSessionID)
+
+  useEffect(() => {
+    let cancelled = false
+    loadHistory(sessionID)
+      .then((history) => {
+        if (!cancelled) {
+          setMessages(history)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Failed to load chat history.")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionID])
 
   const append = useCallback(
     (message: Omit<ChatMessage, "id" | "createdAt">) => {
       setMessages((current) => [
         ...current,
-        { ...message, id: nextID.current++, createdAt: new Date() },
+        { ...message, id: crypto.randomUUID(), createdAt: new Date() },
       ])
     },
     []
   )
 
   const updateAssistant = useCallback(
-    (id: number, updater: (current: string) => string) => {
+    (id: string, updater: (current: string) => string) => {
       setMessages((current) =>
         current.map((message) =>
           message.id === id
@@ -38,22 +62,22 @@ export function useChat() {
       append({ role: "user", content })
       setIsSending(true)
 
-      let assistantID: number | null = null
+      let assistantID: string | null = null
       try {
-        await streamMessage(getOrCreateSessionID(), content, (delta) => {
+        await streamMessage(sessionID, content, (delta) => {
           if (assistantID === null) {
-            assistantID = nextID.current++
+            assistantID = crypto.randomUUID()
             setMessages((current) => [
               ...current,
               {
-                id: assistantID as number,
+                id: assistantID as string,
                 role: "assistant",
                 content: "",
                 createdAt: new Date(),
               },
             ])
           }
-          updateAssistant(assistantID as number, (previous) => previous + delta)
+          updateAssistant(assistantID as string, (previous) => previous + delta)
         })
       } catch {
         toast.error("Failed to get a reply. Please try again.")
@@ -61,8 +85,8 @@ export function useChat() {
         setIsSending(false)
       }
     },
-    [append, updateAssistant]
+    [append, sessionID, updateAssistant]
   )
 
-  return { messages, isSending, send }
+  return { messages, isLoading, isSending, send }
 }

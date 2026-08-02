@@ -219,6 +219,38 @@ func TestServiceChatRequiresMessage(t *testing.T) {
 	}
 }
 
+func TestServiceHistoryReturnsPersistedWebMessages(t *testing.T) {
+	want := []conversation.Message{
+		{ID: "user-1", Role: "user", Content: "hello"},
+		{ID: "assistant-1", Role: "assistant", Content: "hi"},
+	}
+	store := &fakeStore{recentFn: func(_ context.Context, participant string, limit int) ([]conversation.Message, error) {
+		if participant != "web:session-1" {
+			t.Errorf("participant = %q", participant)
+		}
+		if limit != 30 {
+			t.Errorf("limit = %d", limit)
+		}
+		return want, nil
+	}}
+	service := NewService(store, &fakeCompleter{}, nil, "prompt", 30)
+
+	got, err := service.History(context.Background(), "session-1")
+	if err != nil {
+		t.Fatalf("History() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("History() = %#v, want %#v", got, want)
+	}
+}
+
+func TestServiceHistoryRequiresSessionID(t *testing.T) {
+	service := NewService(&fakeStore{}, &fakeCompleter{}, nil, "prompt", 30)
+	if _, err := service.History(context.Background(), "  "); !errors.Is(err, ErrSessionRequired) {
+		t.Fatalf("History() error = %v, want ErrSessionRequired", err)
+	}
+}
+
 func TestServiceChatReturnsCompleterFailure(t *testing.T) {
 	store := &fakeStore{
 		appendFn: func(context.Context, string, conversation.Message) error { return nil },
