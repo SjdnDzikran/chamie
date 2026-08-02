@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
+import { ChatMarkdown } from "@/components/chat/chat-markdown"
 import {
   Message,
   MessageAvatar,
@@ -40,8 +41,8 @@ function MessageRow({ message }: { message: ChatMessage }) {
       <MessageContent>
         {!isUser && <MessageHeader>Chamie</MessageHeader>}
         <Bubble variant={isUser ? "default" : "muted"}>
-          <BubbleContent className="whitespace-pre-wrap">
-            {message.content}
+          <BubbleContent>
+            <ChatMarkdown>{message.content}</ChatMarkdown>
           </BubbleContent>
         </Bubble>
       </MessageContent>
