@@ -1,8 +1,9 @@
+import { apiUrl } from "@/lib/api"
 import type { ChatHistory, ChatMessage, ChatReply } from "@/types/chat"
 
 export async function loadHistory(sessionID: string): Promise<ChatMessage[]> {
   const response = await fetch(
-    `/api/chat/history?session_id=${encodeURIComponent(sessionID)}`
+    apiUrl(`/api/chat/history?session_id=${encodeURIComponent(sessionID)}`)
   )
   if (!response.ok) {
     throw new Error(`Chat history request failed (${response.status})`)
@@ -21,7 +22,7 @@ export async function sendMessage(
   sessionID: string,
   message: string
 ): Promise<ChatReply> {
-  const response = await fetch("/api/chat", {
+  const response = await fetch(apiUrl("/api/chat"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionID, message }),
@@ -39,7 +40,7 @@ export async function streamMessage(
   message: string,
   onDelta: (delta: string) => void
 ): Promise<void> {
-  const response = await fetch("/api/chat/stream", {
+  const response = await fetch(apiUrl("/api/chat/stream"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionID, message }),
