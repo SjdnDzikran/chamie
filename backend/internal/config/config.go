@@ -19,6 +19,7 @@ type Config struct {
 	KapsoWebhookSecret string
 	HTTPAddr           string
 	SystemPromptPath   string
+	CORSAllowedOrigins []string
 }
 
 func Load() (*Config, error) {
@@ -44,6 +45,7 @@ func Load() (*Config, error) {
 		KapsoWebhookSecret: strings.TrimSpace(os.Getenv("KAPSO_WEBHOOK_SECRET")),
 		HTTPAddr:           port,
 		SystemPromptPath:   envOr("SYSTEM_PROMPT_PATH", "./prompts/system.md"),
+		CORSAllowedOrigins: parseOrigins(os.Getenv("CORS_ALLOWED_ORIGINS")),
 	}
 
 	var missing []string
@@ -67,4 +69,15 @@ func envOr(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func parseOrigins(raw string) []string {
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			origins = append(origins, p)
+		}
+	}
+	return origins
 }

@@ -91,3 +91,37 @@ func TestLoadRejectsInvalidHistoryLimit(t *testing.T) {
 		t.Fatalf("Load() error = %v, want HISTORY_LIMIT validation", err)
 	}
 }
+
+func TestLoadParsesCORSAllowedOrigins(t *testing.T) {
+	t.Setenv("AI_API_KEY", "deepseek-key")
+	t.Setenv("DATABASE_URL", "postgres://db/chamie")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://chamie.example.com, https://www.chamie.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	want := []string{"https://chamie.example.com", "https://www.chamie.example.com"}
+	if len(cfg.CORSAllowedOrigins) != len(want) {
+		t.Fatalf("CORSAllowedOrigins = %v, want %v", cfg.CORSAllowedOrigins, want)
+	}
+	for i := range want {
+		if cfg.CORSAllowedOrigins[i] != want[i] {
+			t.Errorf("CORSAllowedOrigins[%d] = %q, want %q", i, cfg.CORSAllowedOrigins[i], want[i])
+		}
+	}
+}
+
+func TestLoadEmptyCORSDefaultsToNone(t *testing.T) {
+	t.Setenv("AI_API_KEY", "deepseek-key")
+	t.Setenv("DATABASE_URL", "postgres://db/chamie")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.CORSAllowedOrigins != nil && len(cfg.CORSAllowedOrigins) != 0 {
+		t.Errorf("expected no CORS origins, got %v", cfg.CORSAllowedOrigins)
+	}
+}
