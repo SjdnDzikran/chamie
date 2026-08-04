@@ -1,5 +1,7 @@
 .env
 bin/
+chamie
+migrateup
 *.test
 *_test.go
 README.md
