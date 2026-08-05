@@ -18,6 +18,7 @@ import (
 	"github.com/dzikran/chamie/internal/chat"
 	"github.com/dzikran/chamie/internal/config"
 	"github.com/dzikran/chamie/internal/conversation"
+	"github.com/dzikran/chamie/internal/cors"
 	"github.com/dzikran/chamie/internal/db"
 	"github.com/dzikran/chamie/internal/whatsapp"
 )
@@ -83,9 +84,11 @@ func run() error {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	handler := cors.Middleware(cfg.CORSAllowedOrigins)(mux)
+
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      90 * time.Second,
